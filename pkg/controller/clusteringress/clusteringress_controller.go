@@ -192,7 +192,7 @@ func (r *ReconcileClusterIngress) reconcile(ctx context.Context, ci *networkingv
 	}
 
 	ci.Status.MarkNetworkConfigured()
-	ci.Status.MarkLoadBalancerReady(getLBStatus())
+	ci.Status.MarkLoadBalancerReady(getLBStatus(r.ambassadorNamespace))
 	ci.Status.ObservedGeneration = ci.Generation
 
 	logger.Info("ClusterIngress successfully synced")
@@ -241,9 +241,9 @@ func (r *ReconcileClusterIngress) reconcileDeletion(ctx context.Context, ci *net
 	return nil
 }
 
-func getLBStatus() []networkingv1alpha1.LoadBalancerIngressStatus {
+func getLBStatus(ambassadorNamespace string) []networkingv1alpha1.LoadBalancerIngressStatus {
 	// TODO: something better...
 	return []networkingv1alpha1.LoadBalancerIngressStatus{
-		{DomainInternal: fmt.Sprintf("ambassador.default.svc.%s", utils.GetClusterDomainName())},
+		{DomainInternal: fmt.Sprintf("ambassador.%s.svc.%s", ambassadorNamespace, utils.GetClusterDomainName())},
 	}
 }
