@@ -6,8 +6,11 @@ import (
 	"strings"
 
 	"github.com/ghodss/yaml"
+	"github.com/knative/pkg/kmeta"
 	"github.com/knative/pkg/logging"
+	"github.com/knative/serving/pkg/apis/networking"
 	networkingv1alpha1 "github.com/knative/serving/pkg/apis/networking/v1alpha1"
+	"github.com/knative/serving/pkg/apis/serving"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -31,10 +34,6 @@ type Mapping struct {
 // Ambassador config
 func MakeService(ctx context.Context, ci *networkingv1alpha1.ClusterIngress, ambassadorNamespace string) (*corev1.Service, error) {
 	logger := logging.FromContext(ctx)
-
-	labels := map[string]string{
-		"clusteringress": ci.Name,
-	}
 
 	ambassadorYaml := ""
 	for _, rule := range ci.Spec.Rules {
@@ -73,16 +72,24 @@ func MakeService(ctx context.Context, ci *networkingv1alpha1.ClusterIngress, amb
 		}
 	}
 	logger.Infof("Creating Ambassador Config:\n %s\n", ambassadorYaml)
-	annotations := map[string]string{
-		"getambassador.io/config": string(ambassadorYaml),
-	}
+
+	annotations := ci.ObjectMeta.Annotations
+	annotations["getambassador.io/config"] = string(ambassadorYaml)
+
+	labels := make(map[string]string)
+	labels[networking.IngressLabelKey] = ci.Name
+
+	ingressLabels := ci.Labels
+	labels[serving.RouteLabelKey] = ingressLabels[serving.RouteLabelKey]
+	labels[serving.RouteNamespaceLabelKey] = ingressLabels[serving.RouteNamespaceLabelKey]
 
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        ci.Name,
-			Namespace:   ambassadorNamespace,
-			Labels:      labels,
-			Annotations: annotations,
+			Name:            ci.Name,
+			Namespace:       ambassadorNamespace,
+			OwnerReferences: []metav1.OwnerReference{*kmeta.NewControllerRef(ci)},
+			Labels:          labels,
+			Annotations:     annotations,
 		},
 		Spec: corev1.ServiceSpec{
 			Type:      corev1.ServiceTypeClusterIP,

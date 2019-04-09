@@ -73,16 +73,15 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		return err
 	}
 
-	// TODO: watch K8s Services but w/o checking ownerref...
-	// // Watch for changes to secondary resource Services and requeue
-	// // the owner ClusterIngress
-	// err = c.Watch(&source.Kind{Type: &corev1.Service{}}, &handler.EnqueueRequestForOwner{
-	// 	IsController: true,
-	// 	OwnerType:    &networkingv1alpha1.ClusterIngress{},
-	// })
-	// if err != nil {
-	// 	return err
-	// }
+	// Watch for changes to secondary resource Services and requeue
+	// the owner ClusterIngress
+	err = c.Watch(&source.Kind{Type: &corev1.Service{}}, &handler.EnqueueRequestForOwner{
+		IsController: true,
+		OwnerType:    &networkingv1alpha1.ClusterIngress{},
+	})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -98,10 +97,10 @@ type ReconcileClusterIngress struct {
 	ambassadorNamespace string
 }
 
-// Reconcile reads that state of the cluster for a ClusterIngress object and makes changes based on the state read
-// and what is in the ClusterIngress.Spec
-// TODO(user): Modify this Reconcile function to implement your Controller logic.  This example creates
-// a Pod as an example
+// Reconcile reads that state of the cluster for a ClusterIngress
+// object and makes changes based on the state read and what is in the
+// ClusterIngress.Spec
+//
 // Note:
 // The Controller will requeue the Request to be processed again if the returned error is non-nil or
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
@@ -237,7 +236,10 @@ func (r *ReconcileClusterIngress) reconcileService(ctx context.Context, ci *netw
 }
 
 func (r *ReconcileClusterIngress) reconcileDeletion(ctx context.Context, ci *networkingv1alpha1.ClusterIngress) error {
-	// TODO: something with a finalizer
+	// TODO: something with a finalizer?  We're using owner refs for
+	// now, but really shouldn't be using owner refs from
+	// cluster-scoped ClusterIngress to a namespace-scoped K8s
+	// Service.
 	return nil
 }
 
