@@ -106,6 +106,76 @@ NODEPORT=$(kubectl get svc -n ambassador ambassador -o jsonpath="{.spec.ports[0]
 curl -H "Host: helloworld-go.default.example.com" http://$(minikube ip):$NODEPORT
 ```
 
+## Test traffic splitting
+
+Create a new Revision 
+```shell
+cat <<EOF | kubectl apply -f -
+apiVersion: serving.knative.dev/v1alpha1
+kind: Service
+metadata:
+  name: helloworld-go
+  namespace: default
+spec:
+  runLatest:
+    configuration:
+      revisionTemplate:
+        spec:
+          container:
+            image: gcr.io/knative-samples/helloworld-go
+            env:
+              - name: TARGET
+                value: "Go Sample v2"
+EOF
+```
+
+Curl the new revision
+```shell
+curl -H "Host: helloworld-go.default.example.com" http://$(minikube ip):$NODEPORT
+```
+
+Split traffic between the two revisions
+```shell
+# Find our two revision ids
+REVS=$(kubectl -n default get rev -l serving.knative.dev/service=helloworld-go --sort-by="{.metadata.creationTimestamp}" --no-headers -o custom-columns="name:{.metadata.name}") && echo "Revisions: $REVS"
+FIRST_REV=$(echo $REVS | awk '{print $1}') && echo "First Revision: $FIRST_REV"
+SECOND_REV=$(echo $REVS | awk '{print $2}') && echo "Second Revision: $SECOND_REV"
+
+# Split traffic 50/50 between both revisions
+cat <<EOF | kubectl apply -f -
+apiVersion: serving.knative.dev/v1alpha1
+kind: Service
+metadata:
+  name: helloworld-go
+  namespace: default
+spec:
+  release:
+    revisions:
+    - $FIRST_REV
+    - $SECOND_REV
+    rolloutPercent: 50
+    configuration:
+      revisionTemplate:
+        spec:
+          container:
+            image: gcr.io/knative-samples/helloworld-go
+            env:
+              - name: TARGET
+                value: "Go Sample v2"
+EOF
+
+# curl the current revision, confirming it shows v1
+curl -H "Host: current.helloworld-go.default.example.com" http://$(minikube ip):$NODEPORT
+
+# curl the candidate revision, confirming it shows v2
+curl -H "Host: candidate.helloworld-go.default.example.com" http://$(minikube ip):$NODEPORT
+
+# curl multiple times, observing the traffic split
+# approximately half should show v1 vs v2
+# CTRL+C to exit the while loop
+while true; do curl -H "Host: helloworld-go.default.example.com" http://$(minikube ip):$NODEPORT; done
+```
+
 # Testing changes locally
 
 If you want to hack on this Ambassador ingress implementation, clone
