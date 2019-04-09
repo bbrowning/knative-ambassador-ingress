@@ -1,0 +1,99 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: knative-ambassador-ingress
+  namespace: knative-serving
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: knative-ambassador-ingress
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - services
+  - events
+  - configmaps
+  verbs:
+  - "*"
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  - replicasets
+  verbs:
+  - "*"
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - servicemonitors
+  verbs:
+  - get
+  - create
+- apiGroups:
+  - networking.internal.knative.dev
+  resources:
+  - clusteringresses
+  - clusteringresses/status
+  verbs:
+  - get
+  - list
+  - update
+  - patch
+  - watch
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: knative-ambassador-ingress
+subjects:
+- kind: ServiceAccount
+  name: knative-ambassador-ingress
+  namespace: knative-serving
+roleRef:
+  kind: ClusterRole
+  name: knative-ambassador-ingress
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: knative-ambassador-ingress
+  namespace: knative-serving
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: knative-ambassador-ingress
+  template:
+    metadata:
+      labels:
+        name: knative-ambassador-ingress
+    spec:
+      serviceAccountName: knative-ambassador-ingress
+      containers:
+        - name: knative-ambassador-ingress
+          image: quay.io/bbrowning/knative-ambassador-ingress:v0.0.1
+          command:
+          - knative-ambassador-ingress
+          imagePullPolicy: Always
+          env:
+            - name: WATCH_NAMESPACE
+              value: "" # watch all namespaces for ClusterIngress
+            - name: AMBASSADOR_NAMESPACE
+              value: "ambassador" # namespace of Ambassador Services
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPERATOR_NAME
+              value: "knative-ambassador-ingress"
