@@ -41,6 +41,36 @@ minikube start --memory=8192 --cpus=4 \
 kubectl apply --filename https://github.com/bbrowning/knative-ambassador-ingress/releases/download/v0.0.1/ambassador.yaml
 ```
 
+## Optional - configure a real domain
+
+If you don't like using Host headers in all your Knative demos,
+configure a real domain following the steps at
+https://www.knative.dev/docs/serving/using-a-custom-domain/ .
+
+Or, if using minikube, something like below:
+
+```shell
+# Set the domain to one that resolves to minikube's IP
+kubectl patch configmap -n knative-serving config-domain -p "{\"data\": {\"$(minikube ip).nip.io\": \"\"}}"
+
+# Enable the ingress addon
+minikube addons enable ingress
+
+# Send all traffic to Ambassador via K8s Ingress
+cat <<EOF | kubectl apply -f -
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: ambassador-ingress
+  namespace: ambassador
+spec:
+  backend:
+    serviceName: ambassador
+    servicePort: 80
+EOF
+```
+
+
 ## Install Istio CRDs
 
 While we don't need Istio when using Knative Serving with Ambassador,
@@ -102,8 +132,7 @@ kubectl get ksvc helloworld-go -n default
 
 Curl the sample app - example with minikube
 ```shell
-NODEPORT=$(kubectl get svc -n ambassador ambassador -o jsonpath="{.spec.ports[0].nodePort}")
-curl -H "Host: helloworld-go.default.example.com" http://$(minikube ip):$NODEPORT
+curl http://helloworld-go.default.$(minikube ip).nip.io
 ```
 
 ## Test traffic splitting
@@ -131,7 +160,7 @@ EOF
 
 Curl the new revision
 ```shell
-curl -H "Host: helloworld-go.default.example.com" http://$(minikube ip):$NODEPORT
+curl http://helloworld-go.default.$(minikube ip).nip.io
 ```
 
 Split traffic between the two revisions
@@ -165,15 +194,15 @@ spec:
 EOF
 
 # curl the current revision, confirming it shows v1
-curl -H "Host: current.helloworld-go.default.example.com" http://$(minikube ip):$NODEPORT
+curl http://current.helloworld-go.default.$(minikube ip).nip.io
 
 # curl the candidate revision, confirming it shows v2
-curl -H "Host: candidate.helloworld-go.default.example.com" http://$(minikube ip):$NODEPORT
+curl http://candidate.helloworld-go.default.$(minikube ip).nip.io
 
 # curl multiple times, observing the traffic split
 # approximately half should show v1 vs v2
 # CTRL+C to exit the while loop
-while true; do curl -H "Host: helloworld-go.default.example.com" http://$(minikube ip):$NODEPORT; done
+while true; do curl http://helloworld-go.default.$(minikube ip).nip.io; done
 ```
 
 # Testing changes locally
