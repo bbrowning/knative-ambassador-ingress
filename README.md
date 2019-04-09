@@ -95,6 +95,17 @@ spec:
 EOF
 ```
 
+Wait for the helloworld-go Knative Service to become Ready:
+```shell
+kubectl get ksvc helloworld-go -n default
+```
+
+Curl the sample app - example with minikube
+```shell
+NODEPORT=$(kubectl get svc -n ambassador ambassador -o jsonpath="{.spec.ports[0].nodePort}")
+curl -H "Host: helloworld-go.default.example.com" http://$(minikube ip):$NODEPORT
+```
+
 # Testing changes locally
 
 If you want to hack on this Ambassador ingress implementation, clone
