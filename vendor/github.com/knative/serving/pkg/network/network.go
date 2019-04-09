@@ -30,6 +30,10 @@ const (
 	// included in request metrics.
 	ProbeHeaderName = "k-network-probe"
 
+	// ProxyHeaderName is the name of an internal header that activator
+	// uses to mark requests going through it.
+	ProxyHeaderName = "k-proxy-request"
+
 	// ConfigName is the name of the configmap containing all
 	// customizations for networking features.
 	ConfigName = "config-network"
@@ -45,6 +49,15 @@ const (
 	// IstioIngressClassName value for specifying knative's Istio
 	// ClusterIngress reconciler.
 	IstioIngressClassName = "istio.ingress.networking.knative.dev"
+
+	// DomainTemplateKey is the name of the configuration entry that
+	// specifies the golang template string to use to construct the
+	// Knative service's DNS name.
+	DomainTemplateKey = "domainTemplate"
+
+	// DefaultDomainTemplate is the default golang template to use when
+	// constructing the Knative Route's Domain(host)
+	DefaultDomainTemplate = "{{.Name}}.{{.Namespace}}.{{.Domain}}"
 )
 
 // Config contains the networking configuration defined in the
@@ -56,6 +69,10 @@ type Config struct {
 
 	// DefaultClusterIngressClass specifies the default ClusterIngress class.
 	DefaultClusterIngressClass string
+
+	// DomainTemplate is the golang text template to use to generate the
+	// Route's domain (host) for the Service.
+	DomainTemplate string
 }
 
 func validateAndNormalizeOutboundIPRanges(s string) (string, error) {
@@ -94,10 +111,18 @@ func NewConfigFromConfigMap(configMap *corev1.ConfigMap) (*Config, error) {
 	} else {
 		nc.IstioOutboundIPRanges = normalizedIpr
 	}
+
 	if ingressClass, ok := configMap.Data[DefaultClusterIngressClassKey]; !ok {
 		nc.DefaultClusterIngressClass = IstioIngressClassName
 	} else {
 		nc.DefaultClusterIngressClass = ingressClass
 	}
+
+	// Blank DomainTemplate makes no sense so use our default
+	nc.DomainTemplate = configMap.Data[DomainTemplateKey]
+	if nc.DomainTemplate == "" {
+		nc.DomainTemplate = DefaultDomainTemplate
+	}
+
 	return nc, nil
 }

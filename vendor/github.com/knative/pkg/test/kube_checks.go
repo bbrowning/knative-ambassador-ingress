@@ -22,11 +22,12 @@ package test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/knative/pkg/test/logging"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	apiv1beta1 "k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	k8styped "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -35,14 +36,15 @@ import (
 const (
 	interval   = 1 * time.Second
 	podTimeout = 8 * time.Minute
+	logTimeout = 1 * time.Minute
 )
 
 // WaitForDeploymentState polls the status of the Deployment called name
 // from client every interval until inState returns `true` indicating it
 // is done, returns an error or timeout. desc will be used to name the metric
 // that is emitted to track how long it took for name to get into the state checked by inState.
-func WaitForDeploymentState(client *KubeClient, name string, inState func(d *apiv1beta1.Deployment) (bool, error), desc string, namespace string, timeout time.Duration) error {
-	d := client.Kube.ExtensionsV1beta1().Deployments(namespace)
+func WaitForDeploymentState(client *KubeClient, name string, inState func(d *appsv1.Deployment) (bool, error), desc string, namespace string, timeout time.Duration) error {
+	d := client.Kube.AppsV1().Deployments(namespace)
 	span := logging.GetEmitableSpan(context.Background(), fmt.Sprintf("WaitForDeploymentState/%s/%s", name, desc))
 	defer span.End()
 
@@ -78,9 +80,36 @@ func GetConfigMap(client *KubeClient, namespace string) k8styped.ConfigMapInterf
 	return client.Kube.CoreV1().ConfigMaps(namespace)
 }
 
-// Returns a func that evaluates if a deployment has scaled to 0 pods
-func DeploymentScaledToZeroFunc() func(d *apiv1beta1.Deployment) (bool, error) {
-	return func(d *apiv1beta1.Deployment) (bool, error) {
+// DeploymentScaledToZeroFunc returns a func that evaluates if a deployment has scaled to 0 pods
+func DeploymentScaledToZeroFunc() func(d *appsv1.Deployment) (bool, error) {
+	return func(d *appsv1.Deployment) (bool, error) {
 		return d.Status.ReadyReplicas == 0, nil
 	}
+}
+
+// WaitForLogContent waits until logs for given Pod/Container include the given content.
+// If the content is not present within timeout it returns error.
+func WaitForLogContent(client *KubeClient, podName, containerName, content string) error {
+	return wait.PollImmediate(interval, logTimeout, func() (bool, error) {
+		logs, err := client.PodLogs(podName, containerName)
+		if err != nil {
+			return true, err
+		}
+		return strings.Contains(string(logs), content), nil
+	})
+}
+
+// WaitForAllPodsRunning waits for all the pods to be in running state
+func WaitForAllPodsRunning(client *KubeClient, namespace string) error {
+	return WaitForPodListState(client, PodsRunning, "PodsAreRunning", namespace)
+}
+
+// PodsRunning will check the status conditions of the pod list and return true all pods are Running
+func PodsRunning(podList *corev1.PodList) (bool, error) {
+	for _, pod := range podList.Items {
+		if pod.Status.Phase != corev1.PodRunning && pod.Status.Phase != corev1.PodSucceeded {
+			return false, nil
+		}
+	}
+	return true, nil
 }

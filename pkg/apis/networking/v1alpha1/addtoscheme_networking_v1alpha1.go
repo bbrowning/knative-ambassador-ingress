@@ -1,7 +1,7 @@
 package v1alpha1
 
 import (
-	"github.com/bbrowning/knative-openshift-ingress/pkg/apis"
+	"github.com/bbrowning/knative-ambassador-ingress/pkg/apis"
 	networkingv1alpha1 "github.com/knative/serving/pkg/apis/networking/v1alpha1"
 )
 

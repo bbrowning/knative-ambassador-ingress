@@ -19,6 +19,10 @@ limitations under the License.
 package zipkin
 
 import (
+	"bytes"
+	"encoding/json"
+	"io/ioutil"
+	"net/http"
 	"sync"
 
 	"github.com/knative/pkg/test/logging"
@@ -41,6 +45,9 @@ const (
 	// App is the name of this component.
 	// This will be used as a label selector
 	app = "zipkin"
+
+	// Namespace we are using for istio components
+	istioNs = "istio-system"
 )
 
 var (
@@ -67,13 +74,13 @@ func SetupZipkinTracing(kubeClientset *kubernetes.Clientset, logf logging.Format
 			return
 		}
 
-		zipkinPods, err := monitoring.GetPods(kubeClientset, app)
+		zipkinPods, err := monitoring.GetPods(kubeClientset, app, istioNs)
 		if err != nil {
 			logf("Error retrieving Zipkin pod details: %v", err)
 			return
 		}
 
-		zipkinPortForwardPID, err = monitoring.PortForward(logf, zipkinPods, ZipkinPort, ZipkinPort)
+		zipkinPortForwardPID, err = monitoring.PortForward(logf, zipkinPods, ZipkinPort, ZipkinPort, istioNs)
 		if err != nil {
 			logf("Error starting kubectl port-forward command: %v", err)
 			return
@@ -108,4 +115,31 @@ func CleanupZipkinTracingSetup(logf logging.FormatLogger) {
 // returns error if the port is not available.
 func CheckZipkinPortAvailability() error {
 	return monitoring.CheckPortAvailability(ZipkinPort)
+}
+
+// JSONTrace returns a trace for the given traceId in JSON format
+func JSONTrace(traceID string) (string, error) {
+	// Check if zipkin port forwarding is setup correctly
+	if err := CheckZipkinPortAvailability(); err == nil {
+		return "", err
+	}
+
+	resp, err := http.Get(ZipkinTraceEndpoint + traceID)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	trace, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	var prettyJSON bytes.Buffer
+	err = json.Indent(&prettyJSON, trace, "", "\t")
+	if err != nil {
+		return "", err
+	}
+
+	return prettyJSON.String(), nil
 }

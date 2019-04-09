@@ -2,12 +2,17 @@ package clusteringress
 
 import (
 	"context"
+	"fmt"
+	"reflect"
 
+	"github.com/bbrowning/knative-ambassador-ingress/pkg/controller/clusteringress/resources"
+	"github.com/knative/pkg/logging"
+	"github.com/knative/serving/pkg/apis/networking"
 	networkingv1alpha1 "github.com/knative/serving/pkg/apis/networking/v1alpha1"
-	routev1 "github.com/openshift/api/route/v1"
-
+	"github.com/knative/serving/pkg/utils"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -15,11 +20,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
-var log = logf.Log.WithName("controller_clusteringress")
+const (
+	ambassadorIngressClass = "ambassador.ingress.networking.knative.dev"
+)
 
 /**
 * USER ACTION REQUIRED: This is a scaffold file intended for the user to modify with their own Controller
@@ -46,22 +52,22 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	}
 
 	// Watch for changes to primary resource ClusterIngress
+	// TODO: Add a filter based on IngressClassAnnotationKey from kn/serving
 	err = c.Watch(&source.Kind{Type: &networkingv1alpha1.ClusterIngress{}}, &handler.EnqueueRequestForObject{})
 	if err != nil {
 		return err
 	}
 
-	// namespace vs cluster scoped...
-	//
-	// // TODO(user): Modify this to be the types you create that are owned by the primary resource
-	// // Watch for changes to secondary resource Pods and requeue the owner ClusterIngress
-	// err = c.Watch(&source.Kind{Type: &routev1.Route{}}, &handler.EnqueueRequestForOwner{
+	// TODO: watch K8s Services but w/o checking ownerref...
+	// // Watch for changes to secondary resource Services and requeue
+	// // the owner ClusterIngress
+	// err = c.Watch(&source.Kind{Type: &corev1.Service{}}, &handler.EnqueueRequestForOwner{
 	// 	IsController: true,
 	// 	OwnerType:    &networkingv1alpha1.ClusterIngress{},
 	// })
-	if err != nil {
-		return err
-	}
+	// if err != nil {
+	// 	return err
+	// }
 
 	return nil
 }
@@ -84,12 +90,12 @@ type ReconcileClusterIngress struct {
 // The Controller will requeue the Request to be processed again if the returned error is non-nil or
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
 func (r *ReconcileClusterIngress) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
-	reqLogger.Info("Reconciling ClusterIngress")
+	ctx := context.TODO()
+	logger := logging.FromContext(ctx)
 
 	// Fetch the ClusterIngress instance
-	instance := &networkingv1alpha1.ClusterIngress{}
-	err := r.client.Get(context.TODO(), request.NamespacedName, instance)
+	original := &networkingv1alpha1.ClusterIngress{}
+	err := r.client.Get(context.TODO(), request.NamespacedName, original)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
@@ -101,60 +107,124 @@ func (r *ReconcileClusterIngress) Reconcile(request reconcile.Request) (reconcil
 		return reconcile.Result{}, err
 	}
 
-	for _, rule := range instance.Spec.Rules {
-
+	// Only reconcile Ambassador ClusterIngress objects
+	ingressClass := original.ObjectMeta.Annotations[networking.IngressClassAnnotationKey]
+	if ingressClass != ambassadorIngressClass {
+		return reconcile.Result{}, nil
 	}
 
-	// Define a new Route object
-	route := newRouteForCR(instance)
+	// Don't modify the informer's copy
+	ci := original.DeepCopy()
 
-	// Can't set owner reference - ClusterIngress is cluster-scoped,
-	// Route is namespace scoped
-	//
-	// // Set ClusterIngress instance as the owner and controller
-	// if err := controllerutil.SetControllerReference(instance, route, r.scheme); err != nil {
-	// 	return reconcile.Result{}, err
-	// }
-
-	// Check if this Route already exists
-	found := &routev1.Route{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: route.Name, Namespace: route.Namespace}, found)
-	if err != nil && errors.IsNotFound(err) {
-		reqLogger.Info("Creating a new Route", "Route.Namespace", route.Namespace, "Route.Name", route.Name)
-		err = r.client.Create(context.TODO(), route)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
-
-		// Route created successfully - don't requeue
-		return reconcile.Result{}, nil
-	} else if err != nil {
+	err = r.reconcile(ctx, ci)
+	if equality.Semantic.DeepEqual(original.Status, ci.Status) {
+		// If we didn't change anything then don't call updateStatus.
+		// This is important because the copy we loaded from the informer's
+		// cache may be stale and we don't want to overwrite a prior update
+		// to status with this stale state.
+	} else if _, err := r.updateStatus(ctx, ci); err != nil {
+		logger.Warnw("Failed to update clusterIngress status", err)
 		return reconcile.Result{}, err
 	}
 
-	// Route already exists - don't requeue
-	reqLogger.Info("Skip reconcile: Route already exists", "Route.Namespace", found.Namespace, "Route.Name", found.Name)
 	return reconcile.Result{}, nil
 }
 
-// newPodForCR returns a busybox pod with the same name/namespace as the cr
-func newRouteForCR(cr *networkingv1alpha1.ClusterIngress) *routev1.Route {
-	labels := map[string]string{
-		"clusteringress": cr.Name,
+// Update the Status of the ClusterIngress.  Caller is responsible for checking
+// for semantic differences before calling.
+func (r *ReconcileClusterIngress) updateStatus(ctx context.Context, desired *networkingv1alpha1.ClusterIngress) (*networkingv1alpha1.ClusterIngress, error) {
+	ci := &networkingv1alpha1.ClusterIngress{}
+	err := r.client.Get(ctx, types.NamespacedName{Name: desired.Name, Namespace: desired.Namespace}, ci)
+	if err != nil {
+		return nil, err
 	}
-	var weight = int32(100)
-	return &routev1.Route{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.Name + "-knative-route",
-			Namespace: "knative-serving",
-			Labels:    labels,
-		},
-		Spec: routev1.RouteSpec{
-			To: routev1.RouteTargetReference{
-				Kind:   "Service",
-				Name:   "activator-service",
-				Weight: &weight,
-			},
-		},
+
+	// If there's nothing to update, just return.
+	if reflect.DeepEqual(ci.Status, desired.Status) {
+		return ci, nil
+	}
+	// Don't modify the informers copy
+	existing := ci.DeepCopy()
+	existing.Status = desired.Status
+	err = r.client.Status().Update(ctx, existing)
+	return existing, err
+}
+
+func (r *ReconcileClusterIngress) reconcile(ctx context.Context, ci *networkingv1alpha1.ClusterIngress) error {
+	logger := logging.FromContext(ctx)
+	if ci.GetDeletionTimestamp() != nil {
+		return r.reconcileDeletion(ctx, ci)
+	}
+
+	// We may be reading a version of the object that was stored at an older version
+	// and may not have had all of the assumed defaults specified.  This won't result
+	// in this getting written back to the API Server, but lets downstream logic make
+	// assumptions about defaulting.
+	ci.SetDefaults(ctx)
+
+	ci.Status.InitializeConditions()
+
+	svc := resources.MakeService(ci)
+
+	logger.Infof("Reconciling clusterIngress :%v", ci)
+	logger.Info("Creating/Updating Ambassador config on K8s Service")
+	if err := r.reconcileService(ctx, ci, svc); err != nil {
+		return err
+	}
+
+	ci.Status.MarkNetworkConfigured()
+	ci.Status.MarkLoadBalancerReady(getLBStatus())
+	ci.Status.ObservedGeneration = ci.Generation
+
+	logger.Info("ClusterIngress successfully synced")
+	return nil
+}
+
+func (r *ReconcileClusterIngress) reconcileService(ctx context.Context, ci *networkingv1alpha1.ClusterIngress,
+	desired *corev1.Service) error {
+	logger := logging.FromContext(ctx)
+
+	// TODO: Owner refs
+	// // Set ClusterIngress instance as the owner and controller
+	// if err := controllerutil.SetControllerReference(instance, service, r.scheme); err != nil {
+	// 	return reconcile.Result{}, err
+	// }
+
+	// Check if this Service already exists
+	svc := &corev1.Service{}
+	err := r.client.Get(ctx, types.NamespacedName{Name: desired.Name, Namespace: desired.Namespace}, svc)
+	if err != nil && errors.IsNotFound(err) {
+		err = r.client.Create(ctx, desired)
+		if err != nil {
+			logger.Errorw("Failed to create Ambassador config on K8s Service", err)
+			return err
+		}
+		logger.Infof("Created Ambassador config on K8s Service %q in namespace %q", desired.Name, desired.Namespace)
+	} else if err != nil {
+		return err
+	} else if !equality.Semantic.DeepEqual(svc.Spec, desired.Spec) || !equality.Semantic.DeepEqual(svc.ObjectMeta.Annotations, desired.ObjectMeta.Annotations) {
+		// Don't modify the informers copy
+		existing := svc.DeepCopy()
+		existing.Spec = desired.Spec
+		existing.ObjectMeta.Annotations = desired.ObjectMeta.Annotations
+		err = r.client.Update(ctx, existing)
+		if err != nil {
+			logger.Errorw("Failed to update Ambassador config on K8s Service", err)
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (r *ReconcileClusterIngress) reconcileDeletion(ctx context.Context, ci *networkingv1alpha1.ClusterIngress) error {
+	// TODO: something with a finalizer
+	return nil
+}
+
+func getLBStatus() []networkingv1alpha1.LoadBalancerIngressStatus {
+	// TODO: something better...
+	return []networkingv1alpha1.LoadBalancerIngressStatus{
+		{DomainInternal: fmt.Sprintf("ambassador.default.svc.%s", utils.GetClusterDomainName())},
 	}
 }

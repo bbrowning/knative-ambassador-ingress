@@ -72,5 +72,8 @@ var (
 		"knative.dev/serving/autoscaler/stable_request_concurrency",
 		"knative.dev/serving/autoscaler/panic_request_concurrency",
 		"knative.dev/serving/autoscaler/target_concurrency_per_pod",
+		"knative.dev/serving/autoscaler/panic_mode",
+		"knative.dev/serving/revision/request_count",
+		"knative.dev/serving/revision/request_latencies",
 	)
 )

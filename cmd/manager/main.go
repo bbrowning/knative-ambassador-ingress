@@ -7,10 +7,9 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/bbrowning/knative-openshift-ingress/pkg/apis"
-	_ "github.com/bbrowning/knative-openshift-ingress/pkg/apis/networking/v1alpha1"
-	_ "github.com/bbrowning/knative-openshift-ingress/pkg/apis/route/v1"
-	"github.com/bbrowning/knative-openshift-ingress/pkg/controller"
+	"github.com/bbrowning/knative-ambassador-ingress/pkg/apis"
+	_ "github.com/bbrowning/knative-ambassador-ingress/pkg/apis/networking/v1alpha1"
+	"github.com/bbrowning/knative-ambassador-ingress/pkg/controller"
 
 	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
 	"github.com/operator-framework/operator-sdk/pkg/leader"
@@ -77,7 +76,7 @@ func main() {
 	ctx := context.TODO()
 
 	// Become the leader before proceeding
-	err = leader.Become(ctx, "knative-openshift-ingress-lock")
+	err = leader.Become(ctx, "knative-ambassador-ingress-lock")
 	if err != nil {
 		log.Error(err, "")
 		os.Exit(1)

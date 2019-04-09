@@ -1,7 +1,7 @@
 package controller
 
 import (
-	"github.com/bbrowning/knative-openshift-ingress/pkg/controller/clusteringress"
+	"github.com/bbrowning/knative-ambassador-ingress/pkg/controller/clusteringress"
 )
 
 func init() {

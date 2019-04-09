@@ -1,24 +1,24 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: knative-openshift-ingress
+  name: knative-ambassador-ingress
 spec:
   replicas: 1
   selector:
     matchLabels:
-      name: knative-openshift-ingress
+      name: knative-ambassador-ingress
   template:
     metadata:
       labels:
-        name: knative-openshift-ingress
+        name: knative-ambassador-ingress
     spec:
-      serviceAccountName: knative-openshift-ingress
+      serviceAccountName: knative-ambassador-ingress
       containers:
-        - name: knative-openshift-ingress
+        - name: knative-ambassador-ingress
           # Replace this with the built image name
           image: REPLACE_IMAGE
           command:
-          - knative-openshift-ingress
+          - knative-ambassador-ingress
           imagePullPolicy: Always
           env:
             - name: WATCH_NAMESPACE
@@ -30,4 +30,4 @@ spec:
                 fieldRef:
                   fieldPath: metadata.name
             - name: OPERATOR_NAME
-              value: "knative-openshift-ingress"
+              value: "knative-ambassador-ingress"

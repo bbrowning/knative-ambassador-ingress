@@ -42,6 +42,14 @@
   revision = "3a771d992973f24aa725d07868b467d1ddfceafb"
 
 [[projects]]
+  digest = "1:234629d9517f48148d0afc3ec633ac7363e330c91ef2390d45dc121be1bb6610"
+  name = "github.com/cloudflare/cfssl"
+  packages = ["log"]
+  pruneopts = "NT"
+  revision = "5d63dbd981b5c408effbb58c442d54761ff94fbd"
+  version = "1.3.2"
+
+[[projects]]
   digest = "1:c61f4f97321a37adcb5b4fd4fd61209cd553e46c99ee606c465553541b12a229"
   name = "github.com/coreos/prometheus-operator"
   packages = [
@@ -282,28 +290,32 @@
   version = "v1.1.5"
 
 [[projects]]
-  branch = "master"
-  digest = "1:d54ff141c2d64f59207ab02daf399fc09c02737df844bbe7a36a8f43fdfeb236"
+  digest = "1:1f01cffa9e22d14395310a015496bdd152427d7e5c35da40f48b22103ec0e91f"
   name = "github.com/knative/pkg"
   packages = [
     "apis",
     "apis/duck",
     "apis/duck/v1alpha1",
+    "changeset",
+    "kmeta",
     "kmp",
+    "logging",
+    "logging/logkey",
   ]
   pruneopts = "NT"
-  revision = "e5c43dce06217a9dfd98f7e7958f6c234ff2f7ea"
+  revision = "916205998db9d085aaff357221b208bc89290ea5"
 
 [[projects]]
-  digest = "1:d9f060568e794dab3c472590e65f5d1e208ec5488c66b17408a7d31bd72e2df2"
+  digest = "1:32192ada36474d2674148323f8c26b71975ce82e8a4b01a40585b3e2613b0b4d"
   name = "github.com/knative/serving"
   packages = [
     "pkg/apis/networking",
     "pkg/apis/networking/v1alpha1",
+    "pkg/utils",
   ]
   pruneopts = "NT"
-  revision = "b3c82dc7afcca05ed03cd52df0860ad866fabd41"
-  version = "v0.4.0"
+  revision = "ca4fffb4743924c58e98badcf5bd3f17a3634d43"
+  version = "v0.5.0"
 
 [[projects]]
   branch = "master"
@@ -356,14 +368,6 @@
   pruneopts = "NT"
   revision = "4b7aa43c6742a2c18fdef89dd197aaae7dac7ccd"
   version = "1.0.1"
-
-[[projects]]
-  digest = "1:8bc8f43d2332d035857c92581df240f247c287629d5f60c751df609f9b6215c5"
-  name = "github.com/openshift/api"
-  packages = ["route/v1"]
-  pruneopts = "NT"
-  revision = "0d921e363e951d89f583292c60d013c318df64dc"
-  version = "v3.9.0"
 
 [[projects]]
   branch = "master"
@@ -914,7 +918,6 @@
     "pkg/client/apiutil",
     "pkg/client/config",
     "pkg/controller",
-    "pkg/controller/controllerutil",
     "pkg/event",
     "pkg/handler",
     "pkg/internal/controller",
@@ -968,8 +971,12 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "github.com/cloudflare/cfssl/log",
+    "github.com/ghodss/yaml",
+    "github.com/knative/pkg/logging",
+    "github.com/knative/serving/pkg/apis/networking",
     "github.com/knative/serving/pkg/apis/networking/v1alpha1",
-    "github.com/openshift/api/route/v1",
+    "github.com/knative/serving/pkg/utils",
     "github.com/operator-framework/operator-sdk/pkg/k8sutil",
     "github.com/operator-framework/operator-sdk/pkg/leader",
     "github.com/operator-framework/operator-sdk/pkg/log/zap",
@@ -977,6 +984,7 @@
     "github.com/operator-framework/operator-sdk/version",
     "github.com/spf13/pflag",
     "k8s.io/api/core/v1",
+    "k8s.io/apimachinery/pkg/api/equality",
     "k8s.io/apimachinery/pkg/api/errors",
     "k8s.io/apimachinery/pkg/apis/meta/v1",
     "k8s.io/apimachinery/pkg/runtime",
@@ -993,7 +1001,6 @@
     "sigs.k8s.io/controller-runtime/pkg/client",
     "sigs.k8s.io/controller-runtime/pkg/client/config",
     "sigs.k8s.io/controller-runtime/pkg/controller",
-    "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil",
     "sigs.k8s.io/controller-runtime/pkg/handler",
     "sigs.k8s.io/controller-runtime/pkg/manager",
     "sigs.k8s.io/controller-runtime/pkg/reconcile",
