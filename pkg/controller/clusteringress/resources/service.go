@@ -1,11 +1,12 @@
 package resources
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
-	"github.com/cloudflare/cfssl/log"
 	"github.com/ghodss/yaml"
+	"github.com/knative/pkg/logging"
 	networkingv1alpha1 "github.com/knative/serving/pkg/apis/networking/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,7 +29,9 @@ type Mapping struct {
 
 // MakeService makes a dummy Kubernetes Service used to provide the
 // Ambassador config
-func MakeService(ci *networkingv1alpha1.ClusterIngress) *corev1.Service {
+func MakeService(ctx context.Context, ci *networkingv1alpha1.ClusterIngress, ambassadorNamespace string) (*corev1.Service, error) {
+	logger := logging.FromContext(ctx)
+
 	labels := map[string]string{
 		"clusteringress": ci.Name,
 	}
@@ -37,7 +40,6 @@ func MakeService(ci *networkingv1alpha1.ClusterIngress) *corev1.Service {
 	for _, rule := range ci.Spec.Rules {
 		hosts := rule.Hosts
 		hostRegex := fmt.Sprintf("^(%s)$", strings.Join(hosts, "|"))
-		fmt.Printf("!!! HostRegex: %s\n", hostRegex)
 		for _, path := range rule.HTTP.Paths {
 			prefix := path.Path
 			prefixRegex := true
@@ -62,21 +64,22 @@ func MakeService(ci *networkingv1alpha1.ClusterIngress) *corev1.Service {
 				}
 				mappingYaml, err := yaml.Marshal(mapping)
 				if err != nil {
-					log.Error(err, "Error creating ambassador yaml")
+					logger.Errorw("Error creating ambassador yaml", err)
+					return nil, err
 				}
 				ambassadorYaml = fmt.Sprintf("%s---\n%s\n", ambassadorYaml, mappingYaml)
 			}
 		}
 	}
-	fmt.Printf("!!! AMBASSADOR YAML:\n %s\n", ambassadorYaml)
+	logger.Infof("Creating Ambassador Config:\n %s\n", ambassadorYaml)
 	annotations := map[string]string{
 		"getambassador.io/config": string(ambassadorYaml),
 	}
 
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        ci.Name + "-ambassador",
-			Namespace:   "default",
+			Name:        ci.Name,
+			Namespace:   ambassadorNamespace,
 			Labels:      labels,
 			Annotations: annotations,
 		},
@@ -84,5 +87,5 @@ func MakeService(ci *networkingv1alpha1.ClusterIngress) *corev1.Service {
 			Type:      corev1.ServiceTypeClusterIP,
 			ClusterIP: "None",
 		},
-	}
+	}, nil
 }

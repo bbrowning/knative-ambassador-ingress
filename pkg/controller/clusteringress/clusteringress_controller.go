@@ -3,6 +3,7 @@ package clusteringress
 import (
 	"context"
 	"fmt"
+	"os"
 	"reflect"
 
 	"github.com/bbrowning/knative-ambassador-ingress/pkg/controller/clusteringress/resources"
@@ -24,7 +25,8 @@ import (
 )
 
 const (
-	ambassadorIngressClass = "ambassador.ingress.networking.knative.dev"
+	ambassadorNamespaceEnvVar = "AMBASSADOR_NAMESPACE"
+	ambassadorIngressClass    = "ambassador.ingress.networking.knative.dev"
 )
 
 /**
@@ -40,7 +42,20 @@ func Add(mgr manager.Manager) error {
 
 // newReconciler returns a new reconcile.Reconciler
 func newReconciler(mgr manager.Manager) reconcile.Reconciler {
-	return &ReconcileClusterIngress{client: mgr.GetClient(), scheme: mgr.GetScheme()}
+	ctx := context.TODO()
+	logger := logging.FromContext(ctx)
+	ambassadorNamespace, found := os.LookupEnv(ambassadorNamespaceEnvVar)
+	if !found {
+		logger.Fatalf("%s must be set", ambassadorNamespaceEnvVar)
+	}
+	if len(ambassadorNamespace) == 0 {
+		logger.Fatalf("%s must not be empty", ambassadorNamespaceEnvVar)
+	}
+	return &ReconcileClusterIngress{
+		client:              mgr.GetClient(),
+		scheme:              mgr.GetScheme(),
+		ambassadorNamespace: ambassadorNamespace,
+	}
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
@@ -78,8 +93,9 @@ var _ reconcile.Reconciler = &ReconcileClusterIngress{}
 type ReconcileClusterIngress struct {
 	// This client, initialized using mgr.Client() above, is a split client
 	// that reads objects from the cache and writes to the apiserver
-	client client.Client
-	scheme *runtime.Scheme
+	client              client.Client
+	scheme              *runtime.Scheme
+	ambassadorNamespace string
 }
 
 // Reconcile reads that state of the cluster for a ClusterIngress object and makes changes based on the state read
@@ -164,7 +180,10 @@ func (r *ReconcileClusterIngress) reconcile(ctx context.Context, ci *networkingv
 
 	ci.Status.InitializeConditions()
 
-	svc := resources.MakeService(ci)
+	svc, err := resources.MakeService(ctx, ci, r.ambassadorNamespace)
+	if err != nil {
+		return err
+	}
 
 	logger.Infof("Reconciling clusterIngress :%v", ci)
 	logger.Info("Creating/Updating Ambassador config on K8s Service")
