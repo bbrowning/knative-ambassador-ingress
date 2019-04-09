@@ -49,10 +49,11 @@ func MakeService(ctx context.Context, ci *networkingv1alpha1.ClusterIngress, amb
 			}
 			for _, split := range path.Splits {
 				service := fmt.Sprintf("%s.%s:%s", split.ServiceName, split.ServiceNamespace, split.ServicePort.String())
+				mappingName := fmt.Sprintf("%s-%s", hosts[0], service)
 				mapping := Mapping{
 					APIVersion:        "ambassador/v1",
 					Kind:              "Mapping",
-					Name:              service,
+					Name:              mappingName,
 					Prefix:            prefix,
 					PrefixRegex:       prefixRegex,
 					Service:           service,
