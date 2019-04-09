@@ -38,7 +38,7 @@ minikube start --memory=8192 --cpus=4 \
 ## Install Ambassador
 
 ```shell
-kubectl apply --filename https://github.com/bbrowning/knative-ambassador-ingress/releases/download/v0.0.1/ambassador.yaml
+kubectl apply --filename https://github.com/bbrowning/knative-ambassador-ingress/releases/download/v0.0.2/ambassador.yaml
 ```
 
 ## Optional - configure a real domain
@@ -100,7 +100,7 @@ kubectl patch configmap -n knative-serving config-network -p '{"data": {"cluster
 ## Run the Ambassador Ingress
 
 ```shell
-kubectl apply --filename https://github.com/bbrowning/knative-ambassador-ingress/releases/download/v0.0.1/release.yaml
+kubectl apply --filename https://github.com/bbrowning/knative-ambassador-ingress/releases/download/v0.0.2/release.yaml
 ```
 
 ## Deploy the Knative helloworld-go sample
@@ -220,8 +220,8 @@ This is how I do it, at least. You'll need to change the repos to ones
 that aren't bbrowning.
 
 ```shell
-operator-sdk build quay.io/bbrowning/knative-ambassador-ingress:v0.0.1
-docker push quay.io/bbrowning/knative-ambassador-ingress:v0.0.1
+operator-sdk build quay.io/bbrowning/knative-ambassador-ingress:v0.0.2
+docker push quay.io/bbrowning/knative-ambassador-ingress:v0.0.2
 ```
 
 Update the image in deploy/release.yaml and tag the git repo with the

@@ -82,7 +82,7 @@ spec:
       serviceAccountName: knative-ambassador-ingress
       containers:
         - name: knative-ambassador-ingress
-          image: quay.io/bbrowning/knative-ambassador-ingress:v0.0.1
+          image: quay.io/bbrowning/knative-ambassador-ingress:v0.0.2
           command:
           - knative-ambassador-ingress
           imagePullPolicy: Always
