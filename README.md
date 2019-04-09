@@ -38,7 +38,7 @@ minikube start --memory=8192 --cpus=4 \
 ## Install Ambassador
 
 ```shell
-kubectl apply --filename deploy/ambassador.yaml
+kubectl apply --filename https://github.com/bbrowning/knative-ambassador-ingress/releases/download/v0.0.1/ambassador.yaml
 ```
 
 ## Install Istio CRDs
@@ -70,7 +70,7 @@ kubectl patch configmap -n knative-serving config-network -p '{"data": {"cluster
 ## Run the Ambassador Ingress
 
 ```shell
-kubectl apply --filename deploy/release.yaml
+kubectl apply --filename https://github.com/bbrowning/knative-ambassador-ingress/releases/download/v0.0.1/release.yaml
 ```
 
 ## Deploy the Knative helloworld-go sample
