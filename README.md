@@ -41,6 +41,33 @@ minikube start --memory=8192 --cpus=4 \
 kubectl apply --filename https://github.com/bbrowning/knative-ambassador-ingress/releases/download/v0.0.2/ambassador.yaml
 ```
 
+
+## Install Istio CRDs
+
+While we don't need Istio when using Knative Serving with Ambassador,
+for now Knative Serving always bundles the Istio-based ClusterIngress
+implementation and thus we need the Istio CRDs to be present even
+though we won't install Istio itself.
+
+```shell
+kubectl apply --filename https://github.com/knative/serving/releases/download/v0.5.0/istio-crds.yaml
+```
+
+## Install Knative Serving
+
+```shell
+kubectl apply --filename https://github.com/knative/serving/releases/download/v0.5.0/serving.yaml
+```
+
+## Change the default ClusterIngress class
+
+By default Istio is used for all ingress traffic. Switch that default
+to our Ambassador implementation.
+
+```shell
+kubectl patch configmap -n knative-serving config-network -p '{"data": {"clusteringress.class": "ambassador.ingress.networking.knative.dev"}}'
+```
+
 ## Optional - configure a real domain
 
 If you don't like using Host headers in all your Knative demos,
@@ -68,33 +95,6 @@ spec:
     serviceName: ambassador
     servicePort: 80
 EOF
-```
-
-
-## Install Istio CRDs
-
-While we don't need Istio when using Knative Serving with Ambassador,
-for now Knative Serving always bundles the Istio-based ClusterIngress
-implementation and thus we need the Istio CRDs to be present even
-though we won't install Istio itself.
-
-```shell
-kubectl apply --filename https://github.com/knative/serving/releases/download/v0.5.0/istio-crds.yaml
-```
-
-## Install Knative Serving
-
-```shell
-kubectl apply --filename https://github.com/knative/serving/releases/download/v0.5.0/serving.yaml
-```
-
-## Change the default ClusterIngress class
-
-By default Istio is used for all ingress traffic. Switch that default
-to our Ambassador implementation.
-
-```shell
-kubectl patch configmap -n knative-serving config-network -p '{"data": {"clusteringress.class": "ambassador.ingress.networking.knative.dev"}}'
 ```
 
 ## Run the Ambassador Ingress
