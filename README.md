@@ -14,6 +14,9 @@ and
 [knative/eventing#918](https://github.com/knative/eventing/issues/918)
 are fixed then Ambassador will also work with Eventing.
 
+# Demo
+<a href="https://vimeo.com/329475364"><img src="docs/video_thumbnail.png" width="400" title="Knative Ambassador Demo"></a>
+
 # Installation
 
 The instructions below were tested against Knative Serving v0.5.0 and
